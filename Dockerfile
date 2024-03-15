@@ -7,6 +7,8 @@ RUN cd /src && go build -ldflags="-X 'github.com/plumber-cd/argocd-applicationse
 
 FROM ubuntu:latest
 
+COPY --from=build /bin/argocd-applicationset-namespaces-generator-plugin /usr/local/bin/argocd-applicationset-namespaces-generator-plugin
+
 RUN useradd -s /bin/bash -u 999 argocd
 WORKDIR /home/argocd
 USER argocd
