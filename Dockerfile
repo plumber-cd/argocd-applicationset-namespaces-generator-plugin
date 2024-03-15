@@ -1,9 +1,11 @@
+FROM --platform=$BUILDPLATFORM golang:1.22 AS build
+
+ARG BUILDPLATFORM
+ARG TARGETARCH
 ARG VERSION
 
-FROM golang:1.22 AS build
-
 COPY . /src
-RUN cd /src && go build -ldflags="-X 'github.com/plumber-cd/argocd-applicationset-namespaces-generator-plugin/cmd/version.Version=$VERSION'" -o /bin/argocd-applicationset-namespaces-generator-plugin
+RUN cd /src && GOOS=linux GOARCH=$TARGETARCH go build -a -ldflags="-X 'github.com/plumber-cd/argocd-applicationset-namespaces-generator-plugin/cmd/version.Version=$VERSION'" -o /bin/argocd-applicationset-namespaces-generator-plugin
 
 FROM ubuntu:latest
 

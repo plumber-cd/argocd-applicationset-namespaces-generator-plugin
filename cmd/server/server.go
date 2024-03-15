@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -22,8 +24,9 @@ type ServerConfig struct {
 
 	Local bool `mapstructure:"local"`
 
-	ServiceAccountTlsCa     string `mapstructure:"service-account-tls-ca"`
-	ServiceAccountTokenPath string `mapstructure:"service-account-token-path"`
+	ServiceAccountTlsCa           string   `mapstructure:"service-account-tls-ca"`
+	ServiceAccountTokenPaths      []string `mapstructure:"service-account-token-paths"`
+	ServiceAccountTokenPathsAsMap map[string]string
 }
 
 func init() {
@@ -36,7 +39,7 @@ func init() {
 	Cmd.PersistentFlags().Bool("local", false, "Enable to use local kubectl context (for debugging)")
 
 	Cmd.PersistentFlags().String("service-account-tls-ca", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt", "Path or base64 to ca.crt for cluster endpoint (if needed, ignored in --local mode)")
-	Cmd.PersistentFlags().String("service-account-token-path", "/var/run/secrets/kubernetes.io/serviceaccount/token", "Path to a token file (ignored in --local mode)")
+	Cmd.PersistentFlags().StringArray("service-account-token-paths", []string{"*=/var/run/secrets/kubernetes.io/serviceaccount/token"}, "Paths to a token file (ignored in --local mode)")
 }
 
 var Cmd = &cobra.Command{
@@ -49,6 +52,22 @@ var Cmd = &cobra.Command{
 		if err := viper.Unmarshal(&config); err != nil {
 			return err
 		}
+
+		slog.Debug("Received list of token paths", "token-paths", config.ServiceAccountTokenPaths)
+		config.ServiceAccountTokenPathsAsMap = make(map[string]string)
+		_ServiceAccountTokenPath := []string{}
+		for _, v := range config.ServiceAccountTokenPaths {
+			parts := strings.Split(v, ",")
+			_ServiceAccountTokenPath = append(_ServiceAccountTokenPath, parts...)
+		}
+		for _, v := range _ServiceAccountTokenPath {
+			parts := strings.SplitN(strings.TrimSpace(v), "=", 2)
+			if len(parts) != 2 {
+				return errors.New("Invalid service-account-token-path format")
+			}
+			config.ServiceAccountTokenPathsAsMap[parts[0]] = parts[1]
+		}
+		slog.Debug("Resulting token paths as map", "token-paths", config.ServiceAccountTokenPathsAsMap)
 
 		http.HandleFunc("/api/v1/getparams.execute", config.secretsHandler(ctx))
 

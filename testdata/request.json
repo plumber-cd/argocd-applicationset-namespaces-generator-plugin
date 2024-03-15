@@ -1,7 +1,9 @@
 {
-    "parameters": {
-        "labelSelector": {
-            "kubernetes.io/metadata.name": "default"
+    "input": {
+        "parameters": {
+            "labelSelector": {
+                "kubernetes.io/metadata.name": "default"
+            }
         }
     }
 }

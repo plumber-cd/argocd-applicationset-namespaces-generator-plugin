@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-applicationset-namespaces-generator-plugin
+  labels:
+    app.kubernetes.io/part-of: argocd
+type: Opaque
+stringData:
+  # The service returns a list of namespace names, and also is protected by NetworkPolicy.
+  # Optionally, it could use TLS.
+  # IMO the token does not matter, but feel free to make it a real secret.
+  token: argocd
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-applicationset-namespaces-generator-plugin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-applicationset-namespaces-generator-plugin
+  template:
+    metadata:
+      labels:
+        app: argocd-applicationset-namespaces-generator-plugin
+    spec:
+      serviceAccountName: argocd-application-controller
+      automountServiceAccountToken: true
+      containers:
+      - name: server
+        image: ghcr.io/plumber-cd/argocd-applicationset-namespaces-generator-plugin:latest
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            memory: 64Mi
+            cpu: 200m
+        env:
+        - name: GOMAXPROCS
+          value: '1'
+        - name: GOMEMLIMIT
+          value: 64MiB
+        - name: ARGOCD_APPLICATIONSET_NAMESPACES_PLUGIN_LOG
+          value: text
+        - name: ARGOCD_APPLICATIONSET_NAMESPACES_PLUGIN_VERBOSITY
+          value: '0'
+        - name: ARGOCD_APPLICATIONSET_NAMESPACES_PLUGIN_LISTEN_TOKEN
+          # Must match the one in the secret
+          value: argocd
+        - name: ARGOCD_APPLICATIONSET_NAMESPACES_PLUGIN_SERVICE_ACCOUNT_TOKEN_PATHS
+          # This is a list of token paths to match clusterName in the request.
+          # The one named "*" is the default token path, if clusterName from the request is not on this list.
+          value: >-
+            *=/run/secrets/admin-cluster/serviceaccount/token,
+            in-cluster=/run/secrets/kubernetes.io/serviceaccount/token
+        - name: ARGOCD_APPLICATIONSET_NAMESPACES_PLUGIN_SERVICE_ACCOUNT_TLS_CA
+          # This will be used if the request did not had clusterCA in it.
+          value: /run/secrets/kubernetes.io/serviceaccount/ca.crt
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-applicationset-namespaces-generator-plugin-network-policy
+spec:
+  egress:
+  - {}
+  ingress:
+  - ports:
+    - port: 8080
+  podSelector:
+    matchLabels:
+      app: argocd-applicationset-namespaces-generator-plugin
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-applicationset-namespaces-generator-plugin
+spec:
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: http
+  selector:
+    app: argocd-applicationset-namespaces-generator-plugin
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-applicationset-namespaces-generator-plugin
+data:
+  token: '$argocd-applicationset-namespaces-generator-plugin:token'
+  baseUrl: "http://argocd-applicationset-namespaces-generator-plugin:8080"

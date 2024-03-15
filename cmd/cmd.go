@@ -65,7 +65,7 @@ func initConfig() {
 
 	handlerOptions := &slog.HandlerOptions{
 		Level:     level,
-		AddSource: level <= slog.LevelDebug,
+		AddSource: level <= -100,
 	}
 	var handler slog.Handler
 	switch format {
