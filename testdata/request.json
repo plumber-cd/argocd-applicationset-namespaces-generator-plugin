@@ -1,0 +1,7 @@
+{
+    "parameters": {
+        "labelSelector": {
+            "kubernetes.io/metadata.name": "default"
+        }
+    }
+}
